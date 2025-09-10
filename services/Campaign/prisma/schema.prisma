@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource campaignDb {
+  provider = "postgresql"
+  url      = env("CAMPAIGN_DATABASE_URL")
+}
+
+model campaign_stats {
+  campaign_id     String    @id @campaignDb.Uuid
+  total_sent      Int?      @default(0)
+  total_delivered Int?      @default(0)
+  total_failed    Int?      @default(0)
+  delivery_rate   Decimal?  @default(dbgenerated("\nCASE\n    WHEN (total_sent = 0) THEN (0)::numeric\n    ELSE round((((total_delivered)::numeric / (total_sent)::numeric) * (100)::numeric), 2)\nEND")) @campaignDb.Decimal(5, 2)
+  last_updated    DateTime? @default(now()) @campaignDb.Timestamp(6)
+  campaigns       campaigns @relation(fields: [campaign_id], references: [campaign_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model campaigns {
+  campaign_id           String          @id @default(dbgenerated("gen_random_uuid()")) @campaignDb.Uuid
+  segment_id            String          @campaignDb.Uuid
+  name                  String          @campaignDb.VarChar(255)
+  message_template      String
+  campaign_type         String?         @default("PROMOTIONAL") @campaignDb.VarChar(50)
+  target_audience_count Int?
+  created_by            String          @campaignDb.VarChar(255)
+  status                String?         @default("ACTIVE") @campaignDb.VarChar(20)
+  created_at            DateTime?       @default(now()) @campaignDb.Timestamp(6)
+  campaign_stats        campaign_stats?
+  segments              segments        @relation(fields: [segment_id], references: [segment_id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model customers_mv {
+  customer_id           String    @id @campaignDb.Uuid
+  name                  String?   @campaignDb.VarChar(255)
+  email                 String?   @campaignDb.VarChar(255)
+  total_spend           Decimal?  @campaignDb.Decimal(12, 2)
+  total_visits          Int?
+  last_order_at         DateTime? @campaignDb.Timestamp(6)
+  status                String?   @campaignDb.VarChar(20)
+  days_since_last_order Int?
+  synced_at             DateTime? @default(now()) @campaignDb.Timestamp(6)
+}
+
+model segments {
+  segment_id    String      @id @default(dbgenerated("gen_random_uuid()")) @campaignDb.Uuid
+  name          String      @campaignDb.VarChar(255)
+  description   String?
+  rules         Json
+  preview_count Int?
+  created_by    String?     @campaignDb.VarChar(255)
+  created_at    DateTime?   @default(now()) @campaignDb.Timestamp(6)
+  updated_at    DateTime?   @default(now()) @campaignDb.Timestamp(6)
+  campaigns     campaigns[]
+}

@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource customerDb {
+  provider = "postgresql"
+  url      = env("CUSTOMER_DATABASE_URL")
+}
+
+model customers {
+  customer_id   String    @id @default(dbgenerated("gen_random_uuid()")) @customerDb.Uuid
+  name          String    @customerDb.VarChar(255)
+  email         String    @unique @customerDb.VarChar(255)
+  phone         String?   @customerDb.VarChar(20)
+  total_spend   Decimal?  @default(0.00) @customerDb.Decimal(12, 2)
+  total_visits  Int?      @default(0)
+  last_order_at DateTime? @customerDb.Timestamp(6)
+  status        String?   @default("ACTIVE") @customerDb.VarChar(20)
+  created_at    DateTime? @default(now()) @customerDb.Timestamp(6)
+  updated_at    DateTime? @default(now()) @customerDb.Timestamp(6)
+  orders        orders[]
+}
+
+model orders {
+  order_id     String    @id @default(dbgenerated("gen_random_uuid()")) @customerDb.Uuid
+  customer_id  String    @customerDb.Uuid
+  order_amount Decimal   @customerDb.Decimal(10, 2)
+  order_status String?   @default("COMPLETED") @customerDb.VarChar(20)
+  created_at   DateTime? @default(now()) @customerDb.Timestamp(6)
+  customers    customers @relation(fields: [customer_id], references: [customer_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model outbox_events {
+  id         Int       @id @default(autoincrement())
+  event_type String    @customerDb.VarChar(50)
+  entity_id  String    @customerDb.Uuid
+  payload    Json
+  published  Boolean?  @default(false)
+  created_at DateTime? @default(now()) @customerDb.Timestamp(6)
+}

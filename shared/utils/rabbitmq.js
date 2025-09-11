@@ -16,7 +16,7 @@ class RabbitMQ {
       this.channel = await this.connection.createChannel();
       this.isConnected = true;
 
-      await this.setupExchanges();
+      await this.setupIngestion_Exchanges();
 
       console.log('Rabbit_MQ Connected');
 
@@ -81,6 +81,87 @@ class RabbitMQ {
       console.error('Failed to setup Ingestion Infra:', error);
       throw error;
     }
+  }
+
+  async publishMessage(exchange, routingKey, message, options = {}) {
+    if (!this.isConnected) throw new Error('RabbitMQ not connected');
+
+    try {
+      const messageBuffer = Buffer.from(JSON.stringify(message));
+      const publishOptions = {
+        persistent: true,
+        timestamp: DATE.now(),
+        messageId: `${Date.now()}-${Math.random()}`,
+        ...options,
+      };
+
+      return this.channel.publish(
+        exchange,
+        routingKey,
+        messageBuffer,
+        publishOptions
+      );
+    } catch (error) {
+      console.error('Failed to publish the message:', error);
+    }
+  }
+
+  async consumeMessages(queue, callback, options = {}) {
+    if (!this.isConnected) {
+      throw new Error('RabbitMQ is not Connected');
+    }
+    try {
+      const consumeOptions = {
+        noAck: false,
+        prefetch: 1,
+        ...options,
+      };
+
+      await this.channel.prefetch(consumeOptions.prefetch);
+      return this.channel.consume(
+        queue,
+        async (msg) => {
+          if (msg) {
+            try {
+              const content = JSON.parse(msg.content.toString());
+              await callback(content, msg);
+
+              this.channel.ack(msg);
+            } catch (error) {
+              console.error('Error processing the message:', error);
+
+              this.channel.nack(msg, false, false);
+            }
+          }
+        },
+        { noAck: consumeOptions.noAck }
+      );
+    } catch (error) {
+      console.error('Failed to Consume messages:', error);
+      throw error;
+    }
+  }
+  async close() {
+    try {
+      if (this.channel) {
+        await this.channel.close();
+      }
+      if (this.connection) {
+        await this.connection.close();
+      }
+      this.isConnected = false;
+      console.log('RabbitMQ connection closed successfully');
+    } catch (error) {
+      console.error('Error closing RabbitMQ connection:', error);
+    }
+  }
+
+  getChannel() {
+    return this.channel;
+  }
+
+  isConnectionActive() {
+    return this.isConnected;
   }
 }
 

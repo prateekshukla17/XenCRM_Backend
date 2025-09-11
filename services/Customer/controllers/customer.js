@@ -15,10 +15,8 @@ const customerSchema = Joi.object({
 
 const customer = async (req, res) => {
   try {
-    // Ensure RabbitMQ connection is active
     await rabbitMQ.ensureConnection();
-    
-    // Check RabbitMQ connection
+
     if (!rabbitMQ.isConnectionActive()) {
       console.error('RabbitMQ connection is not active');
       return res.status(503).json({
@@ -27,7 +25,6 @@ const customer = async (req, res) => {
       });
     }
 
-    // Validate request body
     const { error, value } = customerSchema.validate(req.body, {
       abortEarly: false,
       stripUnknown: true,
@@ -46,7 +43,6 @@ const customer = async (req, res) => {
       });
     }
 
-    // Prepare customer event data
     const customerEventData = {
       eventType: 'customer_data_received',
       timestamp: new Date().toISOString(),
@@ -54,7 +50,6 @@ const customer = async (req, res) => {
       data: value,
     };
 
-    // Publish message to RabbitMQ customer queue
     const published = await rabbitMQ.publishMessage(
       'data_ingestion',
       'customer',

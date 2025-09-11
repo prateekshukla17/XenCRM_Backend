@@ -9,18 +9,17 @@ class CustomerConsumer {
   async start() {
     try {
       console.log('Starting Customer Consumer...');
-      
+
       // Ensure RabbitMQ connection
       console.log('Connecting to RabbitMQ...');
       await rabbitMQ.ensureConnection();
-      
+
       if (!rabbitMQ.isConnectionActive()) {
         throw new Error('Failed to establish RabbitMQ connection');
       }
-      
+
       console.log('RabbitMQ connection established');
 
-      // Start consuming messages
       await rabbitMQ.consumeMessages(
         this.queueName,
         this.processCustomerMessage.bind(this),
@@ -41,7 +40,6 @@ class CustomerConsumer {
 
   async processCustomerMessage(messageContent, message) {
     try {
-      // Validate message structure
       if (!messageContent.data || !messageContent.eventType) {
         throw new Error('Invalid message format: missing data or eventType');
       }
@@ -78,7 +76,6 @@ class CustomerConsumer {
         status = 'ACTIVE',
       } = customerData;
 
-      // Prepare data for database
       const dbData = {
         name: name.trim(),
         email: email.toLowerCase().trim(),
@@ -96,7 +93,6 @@ class CustomerConsumer {
       });
 
       if (existingCustomer) {
-        // Update existing customer
         const updatedCustomer = await customerDB.prisma.customers.update({
           where: { email: dbData.email },
           data: {
@@ -115,7 +111,6 @@ class CustomerConsumer {
           customerId: updatedCustomer.customer_id,
         };
       } else {
-        // Create new customer
         const newCustomer = await customerDB.prisma.customers.create({
           data: {
             ...dbData,
@@ -150,7 +145,6 @@ if (require.main === module) {
     process.exit(1);
   });
 
-  // Graceful shutdown
   const shutdown = async (signal) => {
     console.log(`Received ${signal}, shutting down...`);
     await customerConsumer.stop();

@@ -5,9 +5,31 @@ class RabbitMQ {
     this.connection = null;
     this.channel = null;
     this.isConnected = false;
+    this.isConnecting = false;
+  }
+
+  async ensureConnection() {
+    if (this.isConnected) {
+      return true;
+    }
+    
+    if (this.isConnecting) {
+      // Wait for existing connection attempt to complete
+      while (this.isConnecting) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      return this.isConnected;
+    }
+    
+    return await this.connect();
   }
 
   async connect() {
+    if (this.isConnected) {
+      return true;
+    }
+    
+    this.isConnecting = true;
     try {
       const rabbitmqURL = process.env.RabbitMQ_URL;
       console.log(`Connecting to RabbitMQ`);
@@ -15,6 +37,7 @@ class RabbitMQ {
       this.connection = await ampq.connect(rabbitmqURL);
       this.channel = await this.connection.createChannel();
       this.isConnected = true;
+      this.isConnecting = false;
 
       await this.setupIngestion_Exchanges();
 
@@ -22,19 +45,25 @@ class RabbitMQ {
 
       this.connection.on('error', (err) => {
         console.error('RabbitMQ connection error', err);
-        this.connection = false;
+        this.isConnected = false;
+        this.isConnecting = false;
       });
 
       this.connection.on('close', () => {
         console.log('Connection Closed');
         this.isConnected = false;
+        this.isConnecting = false;
         setTimeout(() => this.connect(), 5000);
       });
+      
+      return true;
     } catch (error) {
       console.error('Connection Failed to RabbitMQ', error);
       this.isConnected = false;
+      this.isConnecting = false;
 
       setTimeout(() => this.connect(), 5000);
+      return false;
     }
   }
 
@@ -90,7 +119,7 @@ class RabbitMQ {
       const messageBuffer = Buffer.from(JSON.stringify(message));
       const publishOptions = {
         persistent: true,
-        timestamp: DATE.now(),
+        timestamp: Date.now(),
         messageId: `${Date.now()}-${Math.random()}`,
         ...options,
       };

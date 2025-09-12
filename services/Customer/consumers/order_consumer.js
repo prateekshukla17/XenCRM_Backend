@@ -49,18 +49,18 @@ class OrderConsumer {
       const orderData = messageContent.data;
 
       // Validate required fields
-      if (!orderData.customer_id || !orderData.order_amount) {
-        throw new Error('Invalid order data: customer_id and order_amount are required');
+      if (!orderData.customer_email || !orderData.order_amount) {
+        throw new Error('Invalid order data: customer_email and order_amount are required');
       }
 
       // Process order data based on event type
       if (messageContent.eventType === 'order_data_received') {
         const result = await this.createOrder(orderData);
-        console.log(`Order ${result.operation}: Order ID ${result.orderId} for Customer ${orderData.customer_id}`);
+        console.log(`Order ${result.operation}: Order ID ${result.orderId} for Customer ${result.customerId} (${orderData.customer_email})`);
         
         // Update customer stats after successful order creation
         if (result.operation === 'created') {
-          await this.updateCustomerStats(orderData.customer_id, orderData.order_amount);
+          await this.updateCustomerStats(result.customerId, orderData.order_amount);
         }
       } else {
         console.warn(`Unknown event type: ${messageContent.eventType}`);
@@ -74,24 +74,24 @@ class OrderConsumer {
   async createOrder(orderData) {
     try {
       const {
-        customer_id,
+        customer_email,
         order_amount,
         order_status = 'COMPLETED',
       } = orderData;
 
-      // Verify customer exists
-      const customerExists = await customerDB.prisma.customers.findUnique({
-        where: { customer_id: customer_id },
-        select: { customer_id: true },
+      // Find customer by email to get customer_id
+      const customer = await customerDB.prisma.customers.findUnique({
+        where: { email: customer_email.toLowerCase() },
+        select: { customer_id: true, email: true, name: true },
       });
 
-      if (!customerExists) {
-        throw new Error(`Customer with ID ${customer_id} does not exist`);
+      if (!customer) {
+        throw new Error(`Customer with email ${customer_email} does not exist`);
       }
 
-      // Prepare data for database
+      // Prepare data for database using the found customer_id
       const dbData = {
-        customer_id: customer_id,
+        customer_id: customer.customer_id,
         order_amount: parseFloat(order_amount),
         order_status: order_status.toUpperCase(),
         created_at: new Date(),

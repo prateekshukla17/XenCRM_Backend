@@ -4,7 +4,7 @@ const Joi = require('joi');
 
 // Define validation schema for order data
 const orderSchema = Joi.object({
-  customer_id: Joi.string().required().uuid().trim(),
+  customer_email: Joi.string().required().email().trim().lowercase(),
   order_amount: Joi.number().required().precision(2).min(0.01),
   order_status: Joi.string().optional().valid('PENDING', 'COMPLETED', 'CANCELLED', 'REFUNDED').default('COMPLETED'),
 });
@@ -45,7 +45,7 @@ const orders = async (req, res) => {
     // Verify customer exists before processing order
     try {
       const customerExists = await customerDB.prisma.customers.findUnique({
-        where: { customer_id: value.customer_id },
+        where: { email: value.customer_email },
         select: { customer_id: true, email: true, name: true },
       });
 
@@ -53,7 +53,7 @@ const orders = async (req, res) => {
         return res.status(404).json({
           success: false,
           message: 'Customer not found',
-          error: 'The specified customer_id does not exist',
+          error: 'The specified customer email does not exist. Please create the customer first.',
         });
       }
     } catch (dbError) {
@@ -85,7 +85,7 @@ const orders = async (req, res) => {
     }
 
     console.log('Order data published to queue:', {
-      customer_id: value.customer_id,
+      customer_email: value.customer_email,
       order_amount: value.order_amount,
       order_status: value.order_status,
       timestamp: orderEventData.timestamp,
@@ -96,7 +96,7 @@ const orders = async (req, res) => {
       success: true,
       message: 'Order data received and queued for processing',
       data: {
-        customer_id: value.customer_id,
+        customer_email: value.customer_email,
         order_amount: value.order_amount,
         order_status: value.order_status,
         status: 'queued',

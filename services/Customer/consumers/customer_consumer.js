@@ -55,6 +55,9 @@ class CustomerConsumer {
       if (messageContent.eventType === 'customer_data_received') {
         const result = await this.upsertCustomer(customerData);
         console.log(`Customer ${result.operation}: ${customerData.email}`);
+        
+        // Publish CustomerMV event with actual customer_id after DB operation
+        await this.publishCustomerMVEvent(result.customerId, customerData, result.operation);
       } else {
         console.warn(`Unknown event type: ${messageContent.eventType}`);
       }
@@ -126,6 +129,41 @@ class CustomerConsumer {
     } catch (error) {
       console.error('Database error during customer upsert:', error);
       throw new Error(`Failed to upsert customer: ${error.message}`);
+    }
+  }
+
+  async publishCustomerMVEvent(customerId, customerData, operation) {
+    try {
+      const customerMVEventData = {
+        eventType: 'customer_mv_upsert',
+        timestamp: new Date().toISOString(),
+        source: 'customer_consumer',
+        data: {
+          customer_id: customerId,
+          name: customerData.name,
+          email: customerData.email,
+          total_spend: customerData.total_spend || 0.0,
+          total_visits: customerData.total_visits || 0,
+          last_order_at: customerData.last_order_at || null,
+          status: customerData.status || 'ACTIVE',
+          operation: operation // 'created' or 'updated'
+        },
+      };
+
+      const published = await rabbitMQ.publishMessage(
+        'data_ingestion',
+        'customer_mv',
+        customerMVEventData
+      );
+
+      if (published) {
+        console.log(`CustomerMV event published for customer: ${customerData.email} (${operation})`);
+      } else {
+        console.warn(`Failed to publish CustomerMV event for customer: ${customerData.email}`);
+      }
+    } catch (error) {
+      console.error('Error publishing CustomerMV event:', error);
+      // Don't throw - we don't want to fail customer processing if MV event fails
     }
   }
 

@@ -60,7 +60,12 @@ class OrderConsumer {
         
         // Update customer stats after successful order creation
         if (result.operation === 'created') {
-          await this.updateCustomerStats(result.customerId, orderData.order_amount);
+          const updatedCustomerStats = await this.updateCustomerStats(result.customerId, orderData.order_amount);
+          
+          // Publish CustomerMV event with updated stats
+          if (updatedCustomerStats) {
+            await this.publishCustomerMVEvent(updatedCustomerStats);
+          }
         }
       } else {
         console.warn(`Unknown event type: ${messageContent.eventType}`);
@@ -135,7 +140,7 @@ class OrderConsumer {
       const newTotalVisits = (customer.total_visits || 0) + 1;
 
       // Update customer stats
-      await customerDB.prisma.customers.update({
+      const updatedCustomer = await customerDB.prisma.customers.update({
         where: { customer_id: customerId },
         data: {
           total_spend: newTotalSpend,
@@ -143,12 +148,58 @@ class OrderConsumer {
           last_order_at: new Date(),
           updated_at: new Date(),
         },
+        select: {
+          customer_id: true,
+          name: true,
+          email: true,
+          total_spend: true,
+          total_visits: true,
+          last_order_at: true,
+          status: true,
+        },
       });
 
       console.log(`Updated customer ${customerId} stats: spend=${newTotalSpend}, visits=${newTotalVisits}`);
+      return updatedCustomer;
     } catch (error) {
       console.error('Error updating customer stats:', error);
       // Don't throw here - we don't want to fail the order creation if stats update fails
+      return null;
+    }
+  }
+
+  async publishCustomerMVEvent(customerData) {
+    try {
+      const customerMVEventData = {
+        eventType: 'customer_mv_upsert',
+        timestamp: new Date().toISOString(),
+        source: 'order_consumer',
+        data: {
+          customer_id: customerData.customer_id,
+          name: customerData.name,
+          email: customerData.email,
+          total_spend: parseFloat(customerData.total_spend || 0),
+          total_visits: customerData.total_visits || 0,
+          last_order_at: customerData.last_order_at,
+          status: customerData.status,
+          operation: 'stats_updated'
+        },
+      };
+
+      const published = await rabbitMQ.publishMessage(
+        'data_ingestion',
+        'customer_mv',
+        customerMVEventData
+      );
+
+      if (published) {
+        console.log(`CustomerMV event published for customer: ${customerData.email} (stats updated)`);
+      } else {
+        console.warn(`Failed to publish CustomerMV event for customer: ${customerData.email}`);
+      }
+    } catch (error) {
+      console.error('Error publishing CustomerMV event:', error);
+      // Don't throw - we don't want to fail order processing if MV event fails
     }
   }
 

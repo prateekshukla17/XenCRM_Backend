@@ -60,10 +60,43 @@ const customer = async (req, res) => {
       throw new Error('Failed to publish message to queue');
     }
 
+    // Publish CustomerMV event for campaign microservice
+    const customerMVEventData = {
+      eventType: 'customer_mv_upsert',
+      timestamp: new Date().toISOString(),
+      source: 'customer_api',
+      data: {
+        customer_id: null, // Will be populated by consumer after customer creation
+        name: value.name,
+        email: value.email,
+        total_spend: value.total_spend || 0.0,
+        total_visits: value.total_visits || 0,
+        last_order_at: value.last_order_at || null,
+        status: value.status || 'ACTIVE',
+        operation: 'create_or_update'
+      },
+    };
+
+    const mvPublished = await rabbitMQ.publishMessage(
+      'data_ingestion',
+      'customer_mv',
+      customerMVEventData
+    );
+
+    if (!mvPublished) {
+      console.warn('Failed to publish CustomerMV event, but continuing with customer creation');
+    }
+
     console.log('Customer data published to queue:', {
       email: value.email,
       name: value.name,
       timestamp: customerEventData.timestamp,
+    });
+
+    console.log('CustomerMV event published to queue:', {
+      email: value.email,
+      name: value.name,
+      operation: 'create_or_update',
     });
 
     // Send success response

@@ -12,15 +12,15 @@ class RabbitMQ {
     if (this.isConnected) {
       return true;
     }
-    
+
     if (this.isConnecting) {
       // Wait for existing connection attempt to complete
       while (this.isConnecting) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
       return this.isConnected;
     }
-    
+
     return await this.connect();
   }
 
@@ -28,7 +28,7 @@ class RabbitMQ {
     if (this.isConnected) {
       return true;
     }
-    
+
     this.isConnecting = true;
     try {
       const rabbitmqURL = process.env.RabbitMQ_URL;
@@ -55,7 +55,7 @@ class RabbitMQ {
         this.isConnecting = false;
         setTimeout(() => this.connect(), 5000);
       });
-      
+
       return true;
     } catch (error) {
       console.error('Connection Failed to RabbitMQ', error);
@@ -98,6 +98,16 @@ class RabbitMQ {
 
       await this.channel.bindQueue(ordersQueue, ingestionExchange, 'order');
 
+      const customerMVQueue = 'customer_mv_queue';
+      await this.channel.assertQueue(customerMVQueue, {
+        durable: true,
+        arguments: {
+          'x-message-ttl': 86400000,
+        },
+      });
+
+      await this.channel.bindQueue(customerMVQueue, ingestionExchange, 'customer_mv');
+
       console.log('Ingestion Infra setup complete');
       console.log('Exchange: Data_ingestions');
       console.log(
@@ -105,6 +115,9 @@ class RabbitMQ {
       );
       console.log(
         '- Orders Queue: orders_ingestion_queue (routing key: order)'
+      );
+      console.log(
+        '- CustomerMV Queue: customer_mv_queue (routing key: customer_mv)'
       );
     } catch (error) {
       console.error('Failed to setup Ingestion Infra:', error);

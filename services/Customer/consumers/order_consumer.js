@@ -1,0 +1,183 @@
+const { customerDB } = require('../../../shared/database');
+const rabbitMQ = require('../../../shared/utils/rabbitmq');
+
+class OrderConsumer {
+  constructor() {
+    this.queueName = 'order_ingestion_queue';
+  }
+
+  async start() {
+    try {
+      console.log('Starting Order Consumer...');
+
+      // Ensure RabbitMQ connection
+      console.log('Connecting to RabbitMQ...');
+      await rabbitMQ.ensureConnection();
+
+      if (!rabbitMQ.isConnectionActive()) {
+        throw new Error('Failed to establish RabbitMQ connection');
+      }
+
+      console.log('RabbitMQ connection established');
+
+      // Start consuming messages
+      await rabbitMQ.consumeMessages(
+        this.queueName,
+        this.processOrderMessage.bind(this),
+        {
+          noAck: false,
+          prefetch: 1,
+        }
+      );
+
+      console.log(
+        `Order Consumer started. Listening on queue: ${this.queueName}`
+      );
+    } catch (error) {
+      console.error('Failed to start Order Consumer:', error);
+      throw error;
+    }
+  }
+
+  async processOrderMessage(messageContent, message) {
+    try {
+      // Validate message structure
+      if (!messageContent.data || !messageContent.eventType) {
+        throw new Error('Invalid message format: missing data or eventType');
+      }
+
+      const orderData = messageContent.data;
+
+      // Validate required fields
+      if (!orderData.customer_id || !orderData.order_amount) {
+        throw new Error('Invalid order data: customer_id and order_amount are required');
+      }
+
+      // Process order data based on event type
+      if (messageContent.eventType === 'order_data_received') {
+        const result = await this.createOrder(orderData);
+        console.log(`Order ${result.operation}: Order ID ${result.orderId} for Customer ${orderData.customer_id}`);
+        
+        // Update customer stats after successful order creation
+        if (result.operation === 'created') {
+          await this.updateCustomerStats(orderData.customer_id, orderData.order_amount);
+        }
+      } else {
+        console.warn(`Unknown event type: ${messageContent.eventType}`);
+      }
+    } catch (error) {
+      console.error('Error processing order message:', error.message);
+      throw error;
+    }
+  }
+
+  async createOrder(orderData) {
+    try {
+      const {
+        customer_id,
+        order_amount,
+        order_status = 'COMPLETED',
+      } = orderData;
+
+      // Verify customer exists
+      const customerExists = await customerDB.prisma.customers.findUnique({
+        where: { customer_id: customer_id },
+        select: { customer_id: true },
+      });
+
+      if (!customerExists) {
+        throw new Error(`Customer with ID ${customer_id} does not exist`);
+      }
+
+      // Prepare data for database
+      const dbData = {
+        customer_id: customer_id,
+        order_amount: parseFloat(order_amount),
+        order_status: order_status.toUpperCase(),
+        created_at: new Date(),
+      };
+
+      // Create new order
+      const newOrder = await customerDB.prisma.orders.create({
+        data: dbData,
+      });
+
+      return {
+        operation: 'created',
+        orderId: newOrder.order_id,
+        customerId: newOrder.customer_id,
+      };
+    } catch (error) {
+      console.error('Database error during order creation:', error);
+      throw new Error(`Failed to create order: ${error.message}`);
+    }
+  }
+
+  async updateCustomerStats(customerId, orderAmount) {
+    try {
+      // Get current customer data
+      const customer = await customerDB.prisma.customers.findUnique({
+        where: { customer_id: customerId },
+        select: {
+          customer_id: true,
+          total_spend: true,
+          total_visits: true,
+        },
+      });
+
+      if (!customer) {
+        console.warn(`Customer ${customerId} not found for stats update`);
+        return;
+      }
+
+      // Calculate new totals
+      const newTotalSpend = parseFloat(customer.total_spend || 0) + parseFloat(orderAmount);
+      const newTotalVisits = (customer.total_visits || 0) + 1;
+
+      // Update customer stats
+      await customerDB.prisma.customers.update({
+        where: { customer_id: customerId },
+        data: {
+          total_spend: newTotalSpend,
+          total_visits: newTotalVisits,
+          last_order_at: new Date(),
+          updated_at: new Date(),
+        },
+      });
+
+      console.log(`Updated customer ${customerId} stats: spend=${newTotalSpend}, visits=${newTotalVisits}`);
+    } catch (error) {
+      console.error('Error updating customer stats:', error);
+      // Don't throw here - we don't want to fail the order creation if stats update fails
+    }
+  }
+
+  async stop() {
+    console.log('Stopping Order Consumer...');
+    // Note: RabbitMQ consumer will stop automatically when connection is closed
+  }
+}
+
+// Create and export singleton instance
+const orderConsumer = new OrderConsumer();
+
+// Start the consumer if this file is run directly
+if (require.main === module) {
+  orderConsumer.start().catch((error) => {
+    console.error('Failed to start order consumer:', error);
+    process.exit(1);
+  });
+
+  // Graceful shutdown
+  const shutdown = async (signal) => {
+    console.log(`Received ${signal}, shutting down...`);
+    await orderConsumer.stop();
+    await rabbitMQ.close();
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+module.exports = orderConsumer;

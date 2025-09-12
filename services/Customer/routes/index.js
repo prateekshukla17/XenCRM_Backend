@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const customerHandler = require('../controllers/customer');
+const orderHandler = require('../controllers/orders');
 const rabbitMQ = require('../../../shared/utils/rabbitmq');
 const app = express();
 require('dotenv').config();
@@ -16,6 +17,7 @@ app.get('/health', (req, res) => {
   });
 });
 app.post('/customers', customerHandler.customer);
+app.post('/orders', orderHandler.orders);
 
 const PORT = process.env.PORT || 3001;
 
@@ -24,17 +26,18 @@ const initializeServices = async () => {
   try {
     console.log('Initializing RabbitMQ connection...');
     await rabbitMQ.connect();
-    console.log('✅ RabbitMQ connection initialized successfully');
+    console.log('RabbitMQ connection initialized successfully');
   } catch (error) {
-    console.error('❌ Failed to initialize RabbitMQ connection:', error);
+    console.error('Failed to initialize RabbitMQ connection:', error);
     // Don't exit the process, let it retry later
   }
 };
 
 app.listen(PORT, async () => {
-  console.log(`🚀 Customer service started on port ${PORT}`);
-  console.log(`📍 Health check: http://localhost:${PORT}/health`);
-  
+  console.log(`Customer service started on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Orders Running on Port:${PORT}`);
+
   // Initialize services after server starts
   await initializeServices();
 });

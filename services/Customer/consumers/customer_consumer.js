@@ -134,6 +134,11 @@ class CustomerConsumer {
 
   async publishCustomerMVEvent(customerId, customerData, operation) {
     try {
+      // Get total orders count for this customer
+      const orderCount = await customerDB.prisma.orders.count({
+        where: { customer_id: customerId }
+      });
+
       const customerMVEventData = {
         eventType: 'customer_mv_upsert',
         timestamp: new Date().toISOString(),
@@ -144,6 +149,7 @@ class CustomerConsumer {
           email: customerData.email,
           total_spend: customerData.total_spend || 0.0,
           total_visits: customerData.total_visits || 0,
+          total_orders: orderCount,
           last_order_at: customerData.last_order_at || null,
           status: customerData.status || 'ACTIVE',
           operation: operation // 'created' or 'updated'

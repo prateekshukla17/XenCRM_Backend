@@ -91,6 +91,7 @@ model customers_mv {
   email                 String?             @db.VarChar(255)
   total_spend           Decimal?            @db.Decimal(12, 2)
   total_visits          Int?
+  total_orders          Int?                @default(0)
   last_order_at         DateTime?           @db.Timestamp(6)
   status                String?             @db.VarChar(20)
   days_since_last_order Int?

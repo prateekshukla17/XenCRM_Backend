@@ -71,6 +71,7 @@ const customer = async (req, res) => {
         email: value.email,
         total_spend: value.total_spend || 0.0,
         total_visits: value.total_visits || 0,
+        total_orders: 0, // New customers start with 0 orders
         last_order_at: value.last_order_at || null,
         status: value.status || 'ACTIVE',
         operation: 'create_or_update'

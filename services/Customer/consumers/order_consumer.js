@@ -170,6 +170,11 @@ class OrderConsumer {
 
   async publishCustomerMVEvent(customerData) {
     try {
+      // Get current total orders count for this customer
+      const totalOrders = await customerDB.prisma.orders.count({
+        where: { customer_id: customerData.customer_id }
+      });
+
       const customerMVEventData = {
         eventType: 'customer_mv_upsert',
         timestamp: new Date().toISOString(),
@@ -180,6 +185,7 @@ class OrderConsumer {
           email: customerData.email,
           total_spend: parseFloat(customerData.total_spend || 0),
           total_visits: customerData.total_visits || 0,
+          total_orders: totalOrders,
           last_order_at: customerData.last_order_at,
           status: customerData.status,
           operation: 'stats_updated'
@@ -193,7 +199,7 @@ class OrderConsumer {
       );
 
       if (published) {
-        console.log(`CustomerMV event published for customer: ${customerData.email} (stats updated)`);
+        console.log(`CustomerMV event published for customer: ${customerData.email} (stats updated) - Total Orders: ${totalOrders}, Spend: $${customerData.total_spend}`);
       } else {
         console.warn(`Failed to publish CustomerMV event for customer: ${customerData.email}`);
       }

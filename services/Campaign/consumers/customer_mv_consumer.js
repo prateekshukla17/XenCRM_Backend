@@ -56,7 +56,7 @@ class CustomerMVConsumer {
       // Process customer MV data based on event type
       if (messageContent.eventType === 'customer_mv_upsert') {
         const result = await this.upsertCustomerMV(customerData);
-        console.log(`CustomerMV ${result.operation}: ${customerData.email} (ID: ${result.customerId})`);
+        console.log(`CustomerMV ${result.operation}: ${customerData.email} (ID: ${result.customerId}) - Orders: ${customerData.total_orders || 0}, Spend: $${customerData.total_spend || 0}`);
       } else {
         console.warn(`Unknown event type: ${messageContent.eventType}`);
       }
@@ -74,6 +74,7 @@ class CustomerMVConsumer {
         email,
         total_spend = 0.0,
         total_visits = 0,
+        total_orders = 0,
         last_order_at,
         status = 'ACTIVE',
         operation
@@ -90,6 +91,7 @@ class CustomerMVConsumer {
         email: email.toLowerCase().trim(),
         total_spend: parseFloat(total_spend),
         total_visits: parseInt(total_visits) || 0,
+        total_orders: parseInt(total_orders) || 0,
         last_order_at: last_order_at ? new Date(last_order_at) : null,
         status: status.toUpperCase(),
         days_since_last_order: daysSinceLastOrder,

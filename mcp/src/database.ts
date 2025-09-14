@@ -417,6 +417,28 @@ export class DatabaseService {
     }
   }
 
+  async getCampaignWithStats(campaignId: string) {
+    try {
+      const campaign = await this.campaignDB.campaigns.findUnique({
+        where: { campaign_id: campaignId },
+        include: {
+          campaign_stats: true,
+          campaign_delivery_summary: true,
+          segments: {
+            select: {
+              name: true,
+              description: true,
+              preview_count: true,
+            },
+          },
+        },
+      });
+      return campaign;
+    } catch (error: any) {
+      throw new Error(`Failed to get campaign Stats ${error.message}`);
+    }
+  }
+
   // Health check
   async healthCheck() {
     try {

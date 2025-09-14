@@ -40,6 +40,7 @@ class RabbitMQ {
       this.isConnecting = false;
 
       await this.setupIngestion_Exchanges();
+      await this.setupMessagingQueues();
 
       console.log('Rabbit_MQ Connected');
 
@@ -106,7 +107,11 @@ class RabbitMQ {
         },
       });
 
-      await this.channel.bindQueue(customerMVQueue, ingestionExchange, 'customer_mv');
+      await this.channel.bindQueue(
+        customerMVQueue,
+        ingestionExchange,
+        'customer_mv'
+      );
 
       console.log('Ingestion Infra setup complete');
       console.log('Exchange: Data_ingestions');
@@ -121,6 +126,42 @@ class RabbitMQ {
       );
     } catch (error) {
       console.error('Failed to setup Ingestion Infra:', error);
+      throw error;
+    }
+  }
+
+  async setupMessagingQueues() {
+    try {
+      if (!this.channel) return;
+
+      // Setup messaging exchange for campaign message responses
+      const messagingExchange = 'campaign_messaging';
+      await this.channel.assertExchange(messagingExchange, 'direct', {
+        durable: true,
+      });
+
+      // Response processing queue - for handling delivery responses from mock server
+      const responseProcessingQueue = 'message_response_queue';
+      await this.channel.assertQueue(responseProcessingQueue, {
+        durable: true,
+        arguments: {
+          'x-message-ttl': 86400000, // 24 hours
+        },
+      });
+
+      await this.channel.bindQueue(
+        responseProcessingQueue,
+        messagingExchange,
+        'response.process'
+      );
+
+      console.log('Messaging Infrastructure setup complete');
+      console.log('Exchange: campaign_messaging');
+      console.log(
+        '- Response Processing Queue: message_response_queue (routing key: response.process)'
+      );
+    } catch (error) {
+      console.error('Failed to setup Messaging Infrastructure:', error);
       throw error;
     }
   }

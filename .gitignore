@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-
+warp.md
 # Logs
 *.log
 npm-debug.log*

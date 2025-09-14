@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "xencrm": {
+      "command": "node",
+      "args": [
+        "/Users/prateekshukla/Documents/Code/XenCRM_Backend/mcp/build/index.js"
+      ],
+      "env": {
+        "CUSTOMER_DATABASE_URL": "postgresql://username:password@localhost:5432/xencrm_customer",
+        "CAMPAIGN_DATABASE_URL": "postgresql://username:password@localhost:5432/xencrm_campaign"
+      }
+    }
+  }
+}

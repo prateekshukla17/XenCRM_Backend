@@ -311,6 +311,211 @@ export class DatabaseService {
             throw new Error(`Failed to get analytics: ${error.message}`);
         }
     }
+    async createCampaign(data) {
+        try {
+            const segement = await this.campaignDB.segments.findUnique({
+                where: { segment_id: data.segment_id },
+                select: { preview_count: true, name: true },
+            });
+            if (!segement) {
+                throw new Error(`Segment with ID ${data.segment_id} not found`);
+            }
+            const campaign = await this.campaignDB.campaigns.create({
+                data: {
+                    segment_id: data.segment_id,
+                    name: data.name,
+                    message_template: data.message_template,
+                    campaign_type: data.campaign_type || 'PROMOTIONAL',
+                    target_audience_count: segement.preview_count || 0,
+                    created_by: data.created_by,
+                    status: data.status || 'Active',
+                },
+                include: {
+                    segments: {
+                        select: {
+                            name: true,
+                            description: true,
+                            preview_count: true,
+                        },
+                    },
+                },
+            });
+            return campaign;
+        }
+        catch (error) {
+            throw new Error(`Campaign not Created: ${error.message}`);
+        }
+    }
+    async getCampaignWithStats(campaignId) {
+        try {
+            const campaign = await this.campaignDB.campaigns.findUnique({
+                where: { campaign_id: campaignId },
+                include: {
+                    campaign_stats: true,
+                    campaign_delivery_summary: true,
+                    segments: {
+                        select: {
+                            name: true,
+                            description: true,
+                            preview_count: true,
+                        },
+                    },
+                },
+            });
+            return campaign;
+        }
+        catch (error) {
+            throw new Error(`Failed to get campaign Stats ${error.message}`);
+        }
+    }
+    async getSegments(limit = 10) {
+        try {
+            const segments = await this.campaignDB.segments.findMany({
+                take: limit,
+                orderBy: { created_at: 'desc' },
+                select: {
+                    segment_id: true,
+                    name: true,
+                    description: true,
+                    preview_count: true,
+                    created_by: true,
+                    created_at: true,
+                    updated_at: true,
+                    _count: {
+                        select: {
+                            campaigns: true,
+                        },
+                    },
+                },
+            });
+            return segments;
+        }
+        catch (error) {
+            throw new Error(`Failed to get segments: ${error.message}`);
+        }
+    }
+    async getSegmentById(segmentId) {
+        try {
+            const segment = await this.campaignDB.segments.findUnique({
+                where: { segment_id: segmentId },
+                include: {
+                    _count: {
+                        select: {
+                            campaigns: true,
+                        },
+                    },
+                },
+            });
+            return segment;
+        }
+        catch (error) {
+            throw new Error(`Failed to get segment: ${error.message}`);
+        }
+    }
+    async getCampaignsBySegment(segmentId, limit = 10) {
+        try {
+            const campaigns = await this.campaignDB.campaigns.findMany({
+                where: { segment_id: segmentId },
+                take: limit,
+                orderBy: { created_at: 'desc' },
+                include: {
+                    campaign_stats: true,
+                    campaign_delivery_summary: true,
+                },
+            });
+            return campaigns;
+        }
+        catch (error) {
+            throw new Error(`Failed to get campaigns for segment: ${error.message}`);
+        }
+    }
+    async getRecentCampaigns(limit = 10) {
+        try {
+            const campaigns = await this.campaignDB.campaigns.findMany({
+                take: limit,
+                orderBy: { created_at: 'desc' },
+                include: {
+                    segments: {
+                        select: {
+                            name: true,
+                            description: true,
+                        },
+                    },
+                    campaign_stats: true,
+                    campaign_delivery_summary: true,
+                },
+            });
+            return campaigns;
+        }
+        catch (error) {
+            throw new Error(`Failed to get recent campaigns: ${error.message}`);
+        }
+    }
+    async updateCampaignStatus(campaignId, status) {
+        try {
+            const campaign = await this.campaignDB.campaigns.update({
+                where: { campaign_id: campaignId },
+                data: { status },
+            });
+            return campaign;
+        }
+        catch (error) {
+            throw new Error(`Failed to update campaign status: ${error.message}`);
+        }
+    }
+    // Get campaign analytics
+    async getCampaignAnalytics(campaignId) {
+        try {
+            if (campaignId) {
+                // Get analytics for specific campaign
+                const campaign = await this.getCampaignWithStats(campaignId);
+                if (!campaign) {
+                    throw new Error('Campaign not found');
+                }
+                return {
+                    campaign: {
+                        id: campaign.campaign_id,
+                        name: campaign.name,
+                        type: campaign.campaign_type,
+                        status: campaign.status,
+                        created_at: campaign.created_at,
+                        target_audience_count: campaign.target_audience_count,
+                    },
+                    stats: campaign.campaign_stats,
+                    delivery: campaign.campaign_delivery_summary,
+                    segment: campaign.segments,
+                };
+            }
+            else {
+                // Get overall campaign analytics
+                const totalCampaigns = await this.campaignDB.campaigns.count();
+                const activeCampaigns = await this.campaignDB.campaigns.count({
+                    where: { status: 'ACTIVE' },
+                });
+                const deliveryStats = await this.campaignDB.campaign_delivery_summary.aggregate({
+                    _sum: {
+                        total_messages: true,
+                        sent_count: true,
+                        delivered_count: true,
+                        failed_count: true,
+                    },
+                });
+                return {
+                    analytics: {
+                        total_campaigns: totalCampaigns,
+                        active_campaigns: activeCampaigns,
+                        total_messages: deliveryStats._sum.total_messages || 0,
+                        total_sent: deliveryStats._sum.sent_count || 0,
+                        total_delivered: deliveryStats._sum.delivered_count || 0,
+                        total_failed: deliveryStats._sum.failed_count || 0,
+                    },
+                };
+            }
+        }
+        catch (error) {
+            throw new Error(`Failed to get campaign analytics: ${error.message}`);
+        }
+    }
     // Health check
     async healthCheck() {
         try {

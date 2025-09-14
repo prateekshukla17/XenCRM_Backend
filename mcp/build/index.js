@@ -98,6 +98,83 @@ class XenCRMServer {
                             ],
                         },
                     },
+                    {
+                        name: 'create_campaign',
+                        description: 'Create a new marketing campaign for an existing segment. Use this to launch campaigns to targeted customer groups.',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                segment_id: {
+                                    type: 'string',
+                                    format: 'uuid',
+                                    description: 'UUID of the existing segment to target',
+                                },
+                                name: {
+                                    type: 'string',
+                                    description: 'Name of the campaign (e.g., "Summer Sale 2024")',
+                                },
+                                message_template: {
+                                    type: 'string',
+                                    description: 'Message template for the campaign (supports placeholders like {name}, {total_spend})',
+                                },
+                                campaign_type: {
+                                    type: 'string',
+                                    enum: [
+                                        'PROMOTIONAL',
+                                        'TRANSACTIONAL',
+                                        'REMINDER',
+                                        'NEWSLETTER',
+                                    ],
+                                    description: 'Type of campaign (optional, defaults to PROMOTIONAL)',
+                                },
+                                created_by: {
+                                    type: 'string',
+                                    description: 'Name or ID of the person creating the campaign',
+                                },
+                                status: {
+                                    type: 'string',
+                                    enum: ['ACTIVE', 'INACTIVE', 'DRAFT'],
+                                    description: 'Campaign status (optional, defaults to ACTIVE)',
+                                },
+                            },
+                            required: [
+                                'segment_id',
+                                'name',
+                                'message_template',
+                                'created_by',
+                            ],
+                        },
+                    },
+                    {
+                        name: 'list_segments',
+                        description: 'List all available customer segments that can be used for campaigns.',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                limit: {
+                                    type: 'number',
+                                    minimum: 1,
+                                    maximum: 50,
+                                    description: 'Maximum number of segments to return (optional, defaults to 10)',
+                                },
+                            },
+                        },
+                    },
+                    {
+                        name: 'get_campaign_stats',
+                        description: 'Get statistics and delivery summary for a specific campaign.',
+                        inputSchema: {
+                            type: 'object',
+                            properties: {
+                                campaign_id: {
+                                    type: 'string',
+                                    format: 'uuid',
+                                    description: 'UUID of the campaign to get stats for',
+                                },
+                            },
+                            required: ['campaign_id'],
+                        },
+                    },
                 ],
             };
         });
@@ -110,6 +187,12 @@ class XenCRMServer {
                         return await this.handleAddCustomer(args);
                     case 'add_order':
                         return await this.handleAddOrder(args);
+                    case 'create_campaign':
+                        return await this.handleCreateCampaign(args);
+                    case 'list_segments':
+                        return await this.handleListSegments(args);
+                    case 'get_campaign_stats':
+                        return await this.handleGetCampaignStats(args);
                     default:
                         throw new Error(`Unknown tool: ${name}`);
                 }
@@ -217,6 +300,149 @@ class XenCRMServer {
             ],
         };
     }
+    async handleCreateCampaign(args) {
+        // Validate required fields
+        const { segment_id, name, message_template, campaign_type = 'PROMOTIONAL', created_by, status = 'ACTIVE', } = args;
+        if (!segment_id || !name || !message_template || !created_by) {
+            throw new Error('Missing required fields: segment_id, name, message_template, and created_by are required');
+        }
+        // Create campaign in database
+        const campaign = await dbService.createCampaign({
+            segment_id,
+            name,
+            message_template,
+            campaign_type,
+            created_by,
+            status,
+        });
+        // Get segment information for the response
+        const segment = await dbService.getSegmentById(segment_id);
+        // Format response
+        const responseText = [
+            `🚀 **Campaign Created Successfully!**`,
+            ``,
+            `**Campaign Details:**`,
+            `• **Campaign ID:** ${campaign.campaign_id}`,
+            `• **Name:** ${campaign.name}`,
+            `• **Type:** ${campaign.campaign_type}`,
+            `• **Status:** ${campaign.status}`,
+            `• **Created By:** ${campaign.created_by}`,
+            `• **Created:** ${formatDate(campaign.created_at)}`,
+            ``,
+            `**Target Segment:**`,
+            `• **Segment:** ${segment?.name || 'Unknown'}`,
+            `• **Description:** ${segment?.description || 'No description'}`,
+            `• **Target Count:** ${segment?.preview_count || campaign.target_audience_count || 'Unknown'}`,
+            ``,
+            `**Message Template:**`,
+            `"${campaign.message_template}"`,
+            ``,
+            `The campaign is now ready for execution. Use the campaign stats tool to monitor its performance.`,
+        ].join('\n');
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: responseText,
+                },
+            ],
+        };
+    }
+    async handleListSegments(args) {
+        const limit = args?.limit || 10;
+        // Get segments from database
+        const segments = await dbService.getSegments(limit);
+        if (!segments || segments.length === 0) {
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `📊 **No Segments Found**\n\nThere are currently no customer segments available for campaigns.`,
+                    },
+                ],
+            };
+        }
+        // Format response
+        const segmentsList = segments
+            .map((segment, index) => {
+            return [
+                `**${index + 1}. ${segment.name}**`,
+                `   • **ID:** ${segment.segment_id}`,
+                `   • **Description:** ${segment.description || 'No description'}`,
+                `   • **Target Count:** ${segment.preview_count || 'Unknown'}`,
+                `   • **Created:** ${formatDate(segment.created_at)}`,
+                `   • **Created By:** ${segment.created_by || 'Unknown'}`,
+            ].join('\n');
+        })
+            .join('\n\n');
+        const responseText = [
+            `📊 **Available Customer Segments**`,
+            ``,
+            `Found ${segments.length} segment${segments.length !== 1 ? 's' : ''}:`,
+            ``,
+            segmentsList,
+            ``,
+            `Use any segment ID above to create a new campaign targeting that customer group.`,
+        ].join('\n');
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: responseText,
+                },
+            ],
+        };
+    }
+    async handleGetCampaignStats(args) {
+        const { campaign_id } = args;
+        if (!campaign_id) {
+            throw new Error('Campaign ID is required');
+        }
+        // Get campaign with stats
+        const campaign = await dbService.getCampaignWithStats(campaign_id);
+        if (!campaign) {
+            throw new Error(`Campaign with ID ${campaign_id} not found`);
+        }
+        // Format response
+        const responseText = [
+            `📈 **Campaign Statistics**`,
+            ``,
+            `**Campaign Information:**`,
+            `• **Name:** ${campaign.name}`,
+            `• **Type:** ${campaign.campaign_type}`,
+            `• **Status:** ${campaign.status}`,
+            `• **Created:** ${formatDate(campaign.created_at)}`,
+            `• **Created By:** ${campaign.created_by}`,
+            ``,
+            `**Delivery Statistics:**`,
+            `• **Total Messages:** ${campaign.campaign_delivery_summary?.total_messages || 0}`,
+            `• **Pending:** ${campaign.campaign_delivery_summary?.pending_count || 0}`,
+            `• **Sent:** ${campaign.campaign_delivery_summary?.sent_count || 0}`,
+            `• **Delivered:** ${campaign.campaign_delivery_summary?.delivered_count || 0}`,
+            `• **Failed:** ${campaign.campaign_delivery_summary?.failed_count || 0}`,
+            ``,
+            `**Performance Metrics:**`,
+            `• **Total Sent:** ${campaign.campaign_stats?.total_sent || 0}`,
+            `• **Total Delivered:** ${campaign.campaign_stats?.total_delivered || 0}`,
+            `• **Total Failed:** ${campaign.campaign_stats?.total_failed || 0}`,
+            `• **Delivery Rate:** ${campaign.campaign_stats?.delivery_rate || 0}%`,
+            `• **Last Updated:** ${formatDate(campaign.campaign_stats?.last_updated || null)}`,
+            ``,
+            `**Target Segment:**`,
+            `• **Segment:** ${campaign.segments?.name || 'Unknown'}`,
+            `• **Target Audience:** ${campaign.target_audience_count ||
+                campaign.segments?.preview_count ||
+                'Unknown'}`,
+        ].join('\n');
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: responseText,
+                },
+            ],
+        };
+    }
     setupErrorHandling() {
         // Handle server errors
         this.server.onerror = (error) => {
@@ -243,7 +469,7 @@ class XenCRMServer {
             const transport = new StdioServerTransport();
             await this.server.connect(transport);
             console.error('🚀 XenCRM MCP Server is running!');
-            console.error('📊 Available tools: add_customer, add_order');
+            console.error('📊 Available tools: add_customer, add_order, create_campaign, list_segments, get_campaign_stats');
             console.error('💡 Supports natural language inputs for easy interaction');
         }
         catch (error) {

@@ -371,6 +371,15 @@ export class DatabaseService {
     }
   }
 
+  async createCampaign(data: {
+    segment_id: string;
+    name: string;
+    message_template: string;
+    campaign_type?: string;
+    created_by: string;
+    status?: string;
+  });
+
   // Health check
   async healthCheck() {
     try {

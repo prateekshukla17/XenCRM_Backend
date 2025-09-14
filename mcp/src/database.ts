@@ -1,5 +1,6 @@
 import { PrismaClient as CustomerPrismaClient } from '../../node_modules/.prisma/customer-client/index.js';
 import { PrismaClient as CampaignPrismaClient } from '../../node_modules/.prisma/campaign-client/index.js';
+import { error } from 'console';
 
 // Initialize Prisma clients
 const customerPrisma = new CustomerPrismaClient();
@@ -378,7 +379,43 @@ export class DatabaseService {
     campaign_type?: string;
     created_by: string;
     status?: string;
-  });
+  }) {
+    try {
+      const segement = await this.campaignDB.segments.findUnique({
+        where: { segment_id: data.segment_id },
+        select: { preview_count: true, name: true },
+      });
+
+      if (!segement) {
+        throw new Error(`Segment with ID ${data.segment_id} not found`);
+      }
+
+      const campaign = await this.campaignDB.campaigns.create({
+        data: {
+          segment_id: data.segment_id,
+          name: data.name,
+          message_template: data.message_template,
+          campaign_type: data.campaign_type || 'PROMOTIONAL',
+          target_audience_count: segement.preview_count || 0,
+          created_by: data.created_by,
+          status: data.status || 'Active',
+        },
+        include: {
+          segments: {
+            select: {
+              name: true,
+              description: true,
+              preview_count: true,
+            },
+          },
+        },
+      });
+
+      return campaign;
+    } catch (error: any) {
+      throw new Error(`Campaign not Created: ${error.message}`);
+    }
+  }
 
   // Health check
   async healthCheck() {

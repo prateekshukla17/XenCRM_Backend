@@ -499,6 +499,52 @@ export class DatabaseService {
     }
   }
 
+  async getCampaigns(limit: number = 10, status?: string) {
+    try {
+      const whereClause: any = {};
+
+      if (status) {
+        whereClause.status = status;
+      }
+
+      const campaigns = await this.campaignDB.campaigns.findMany({
+        where: whereClause,
+        take: limit,
+        orderBy: { created_at: 'desc' },
+        include: {
+          segments: {
+            select: {
+              name: true,
+              description: true,
+              preview_count: true,
+            },
+          },
+          campaign_stats: {
+            select: {
+              total_sent: true,
+              total_delivered: true,
+              total_failed: true,
+              delivery_rate: true,
+              last_updated: true,
+            },
+          },
+          campaign_delivery_summary: {
+            select: {
+              total_messages: true,
+              pending_count: true,
+              sent_count: true,
+              delivered_count: true,
+              failed_count: true,
+            },
+          },
+        },
+      });
+      return campaigns;
+    } catch (error: any) {
+      throw new Error(`Failed to get campaigns: ${error.message}`);
+    }
+  }
+
   async getRecentCampaigns(limit: number = 10) {
     try {
       const campaigns = await this.campaignDB.campaigns.findMany({

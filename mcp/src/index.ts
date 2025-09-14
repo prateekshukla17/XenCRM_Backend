@@ -188,6 +188,22 @@ class XenCRMServer {
             },
           },
           {
+            name: 'list_campaigns',
+            description: 'List all available campaigns',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                limit: {
+                  type: 'number',
+                  minimum: 1,
+                  maximum: 10,
+                  description:
+                    'Maximum number of campaigns to return (optional, defaults to 10)',
+                },
+              },
+            },
+          },
+          {
             name: 'get_campaign_stats',
             description:
               'Get statistics and delivery summary for a specific campaign.',
@@ -221,6 +237,8 @@ class XenCRMServer {
             return await this.handleCreateCampaign(args);
           case 'list_segments':
             return await this.handleListSegments(args);
+          case 'list_campaigns':
+            return await this.handleListCampaigns(args);
           case 'get_campaign_stats':
             return await this.handleGetCampaignStats(args);
           default:
@@ -460,6 +478,80 @@ class XenCRMServer {
     };
   }
 
+  private async handleListCampaigns(args: any) {
+    const limit = args?.limit || 10;
+    const status = args?.status; // Optional status filter
+
+    // Get campaigns from database
+    const campaigns = await dbService.getCampaigns(limit, status);
+
+    if (!campaigns || campaigns.length === 0) {
+      const statusFilter = status ? ` with status "${status}"` : '';
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `📧 **No Campaigns Found**\n\nThere are currently no campaigns available${statusFilter}.`,
+          },
+        ],
+      };
+    }
+
+    // Format response
+    const campaignsList = campaigns
+      .map((campaign, index) => {
+        const segment = campaign.segments;
+        const stats = campaign.campaign_stats;
+        const delivery = campaign.campaign_delivery_summary;
+
+        return [
+          `**${index + 1}. ${campaign.name}**`,
+          `   • **ID:** ${campaign.campaign_id}`,
+          `   • **Status:** ${campaign.status}`,
+          `   • **Type:** ${campaign.campaign_type}`,
+          `   • **Segment:** ${segment?.name || 'No segment'}`,
+          `   • **Target Count:** ${segment?.preview_count || 'Unknown'}`,
+          stats
+            ? `   • **Delivery Rate:** ${
+                stats.delivery_rate
+                  ? (Number(stats.delivery_rate) * 100).toFixed(1) + '%'
+                  : 'N/A'
+              }`
+            : '',
+          delivery
+            ? `   • **Messages:** ${delivery.total_messages || 0} total, ${
+                delivery.delivered_count || 0
+              } delivered, ${delivery.failed_count || 0} failed`
+            : '',
+          `   • **Created:** ${formatDate(campaign.created_at)}`,
+          `   • **Created By:** ${campaign.created_by || 'Unknown'}`,
+        ]
+          .filter((line) => line !== '')
+          .join('\n');
+      })
+      .join('\n\n');
+
+    const statusFilter = status ? ` (Status: ${status})` : '';
+    const responseText = [
+      `📧 **Available Campaigns${statusFilter}**`,
+      ``,
+      `Found ${campaigns.length} campaign${campaigns.length !== 1 ? 's' : ''}:`,
+      ``,
+      campaignsList,
+      ``,
+      `Use any campaign ID above to view details or manage the campaign.`,
+    ].join('\n');
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: responseText,
+        },
+      ],
+    };
+  }
+
   private async handleGetCampaignStats(args: any) {
     const { campaign_id } = args;
 
@@ -558,7 +650,7 @@ class XenCRMServer {
 
       console.error('🚀 XenCRM MCP Server is running!');
       console.error(
-        '📊 Available tools: add_customer, add_order, create_campaign, list_segments, get_campaign_stats'
+        '📊 Available tools: add_customer, add_order, create_campaign, list_segments, list_campaigns, get_campaign_stats'
       );
       console.error('💡 Supports natural language inputs for easy interaction');
     } catch (error) {

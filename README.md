@@ -27,10 +27,59 @@ XenCRM follows a microservices architecture with:
 - Read Heavy Operations on the Database.
   ![Delivery](./readme_resources/deliveryms.png)
 
-### Frontend - [LinkToRepos](https://github.com/prateekshukla17/XenCRM_Frontend)
+### Frontend - [LinkToRepo](https://github.com/prateekshukla17/XenCRM_Frontend)
 
 - Authenticated via Google OAuth (NextAuth).
 - Provides UI to create segments, create campaigns, and view dashboards.
 - Communicates with Campaigns DB via APIs (/segments, /campaigns, /dashboard, /campaignStats).
 
   ![Frontend](./readme_resources/frontend.png)
+
+## Architecture Reasoning
+
+Ingestion service (Master DB)
+
+- System of record: strong transactional guarantees for customers & orders.
+- Optimized for writes and intergrity.
+- Publishes events about state changes.
+
+Functional / Campaign service (Business DB)
+
+- Owns segments, campaigns, communication_log, and a denormalized customer_mv for fast read queries.
+- Optimized for complex read queries (segmentation) and campaign delivery.
+- Isolated schema means we can evolve it (indexes, materialized views, different DB engine) without touching ingestion.
+
+  Why this split:
+
+  - separates write/load patterns (write-heavy ingestion vs read-heavy campaign queries)
+  - Resilience & scalability — decouples producers and consumers so ingestion traffic doesn’t slow down campaigns.
+
+## 📁 Project Structure
+
+```
+XenCRM_Backend/
+├── services/
+│   ├── Customer/           # Customer management service
+│   │   ├── prisma/         # Customer database schema
+│   │   ├── consumers/      # RabbitMQ message consumers
+│   │   ├── controllers/    # API controllers
+│   │   └── routes/         # API routes
+│   └── Campaign/           # Campaign management & messaging service
+│       ├── prisma/         # Campaign database schema
+│       ├── consumers/      # Message processing consumers
+│       ├── services/       # Business logic services
+│       └── messagingOrchestrator.js  # Main messaging coordinator
+├── shared/
+│   ├── database.js         # Multi-database connection manager
+│   ├── utils/
+│   │   └── rabbitmq.js     # RabbitMQ connection & queue management
+│   └── types/
+│       └── events.js       # Event type definitions
+└── mcp/                    # Model Context Protocol server
+    ├── src/                # TypeScript source code
+    │   ├── index.ts        # Main MCP server
+    │   ├── database.ts     # Database service layer
+    │   └── schemas.ts      # Validation schemas
+    ├── build/              # Compiled JavaScript
+    └── README.md           # MCP server documentation
+```

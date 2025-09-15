@@ -642,19 +642,19 @@ class XenCRMServer {
     try {
       // Test database connection
       await dbService.healthCheck();
-      console.error('✅ Database connection established');
+      console.error('Database connection established');
 
       // Start the server
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
 
-      console.error('🚀 XenCRM MCP Server is running!');
+      console.error('XenCRM MCP Server is running!');
       console.error(
         '📊 Available tools: add_customer, add_order, create_campaign, list_segments, list_campaigns, get_campaign_stats'
       );
       console.error('💡 Supports natural language inputs for easy interaction');
     } catch (error) {
-      console.error('❌ Failed to start XenCRM MCP Server:', error);
+      console.error('Failed to start XenCRM MCP Server:', error);
       process.exit(1);
     }
   }
@@ -663,6 +663,6 @@ class XenCRMServer {
 // Start the server
 const server = new XenCRMServer();
 server.start().catch((error) => {
-  console.error('❌ Server startup failed:', error);
+  console.error('Server startup failed:', error);
   process.exit(1);
 });

@@ -72,11 +72,72 @@ Why this split:
 
 ### MasterDB
 
+```sql
+customers (customer_id, name, email, phone, total_spend, total_visits, status)
+orders (order_id, customer_id, order_amount, order_status, created_at)
+```
+
 ![MasterDb](./readme_resources/masterdb.png)
 
 ### BusinessDb
 
+```sql
+campaigns (campaign_id, segment_id, name, message_template, status)
+communication_log (communication_id, campaign_id, customer_id, message_text, status, attempts)
+delivery_receipts (receipt_id, communication_id, vendor_ref, receipt_status)
+segments (segment_id, name, description, rules, preview_count)
+campaign_stats (campaign_id, total_sent, total_delivered, delivery_rate)
+customers_mv (customer_id, name, email, total_spend, synced_at)
+```
+
 ![BusinessDb](./readme_resources/businessdb.png)
+
+## RabbitMQ Setup
+
+- **Exchange**: `data_ingestion` (for customer data)
+- **Exchange**: `campaign_messaging` (for message responses)
+
+### Queues
+
+- `customer_ingestion_queue` - Customer data updates
+- `order_ingestion_queue` - Order data updates
+- `customer_mv_queue` - Customer materialized view updates
+- `message_response_queue` - Message delivery responses
+
+## MCP Server!
+
+### Overview
+
+The XenCRM MCP (Model Context Protocol) Server enables AI assistants like Claude to interact with your CRM system through natural language commands.
+
+### Available Tools
+
+#### 1. Add Customer (`add_customer`)
+
+**Natural Language Examples:**
+
+- _"Add a new customer named Rohan with ₹5000 spend and 3 visits."_
+- _"Create customer John Doe with email john@example.com"_
+
+#### 2. Add Order (`add_order`)
+
+**Natural Language Examples:**
+
+- _"Record an order of ₹1200 for user2@example.com"_
+- _"Add order worth ₹5000 for customer ID abc-123-def"_
+
+#### 3. List Campaigns (`list_campaings`)
+
+- _"Show me all Campaigns"_
+- _"Show me only actice campaigns"_
+
+#### 4. List Segments(`list_segments`)
+
+- _"Show me all customer segments"_
+
+#### 5. Create Campaigns(`create_campaing)
+
+- _"Create promotional campaign 'Festival Sale' for segment high-value-customers with message 'Exclusive for you {name}! 40% off everything!' created by Admin"_
 
 ## Project Structure
 
@@ -107,3 +168,65 @@ XenCRM_Backend/
     ├── build/              # Compiled JavaScript
     └── README.md           # MCP server documentation
 ```
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL
+- RabbitMQ
+- Docker (optional)
+
+### Environment Variables
+
+```bash
+# Customer Service
+CUSTOMER_DATABASE_URL=postgreSQL_db_URL
+# Campaign Service
+CAMPAIGN_DATABASE_URL=postgreSQL_db_URL
+
+# RabbitMQ
+RabbitMQ_URL=amqp://localhost:5672
+```
+
+### Installation
+
+````bash
+# Install dependencies
+npm install
+
+# Generate Prisma clients
+npx prisma generate --schema=./services/Customer/prisma/schema.prisma
+npx prisma generate --schema=./services/Campaign/prisma/schema.prisma
+
+### Start All Services
+
+```bash
+# Start Campaign Messaging System
+cd services/Campaign
+node messagingOrchestrator.js
+````
+
+### Start Individual Services
+
+```bash
+# Customer MV Consumer
+cd services/Campaign
+node consumers/customer_mv_consumer.js
+
+#Start the Ingestion Server
+cd services/Customer/routes
+node index.js
+
+# Start the Customer & order Consumers
+cd services/Customer/Consumers
+node customer_consumer.js
+node order_consumer.js
+
+# Start the message delivery service
+cd services/Campaign
+node messagingOrchestrator.js
+```
+
+### Credits
+
+Built with sleepless nights, multiple Red Bulls and determination, by Prateek Shukla :).

@@ -10,7 +10,7 @@ class CustomerMVConsumer {
     try {
       console.log('Starting CustomerMV Consumer...');
 
-      // Ensure RabbitMQ connection
+      // Ensuring RabbitMQ connection
       console.log('Connecting to RabbitMQ...');
       await rabbitMQ.ensureConnection();
 
@@ -53,10 +53,16 @@ class CustomerMVConsumer {
         throw new Error('Invalid customer data: email is required');
       }
 
-      // Process customer MV data based on event type
+      // Processing customer MV data based on event type
       if (messageContent.eventType === 'customer_mv_upsert') {
         const result = await this.upsertCustomerMV(customerData);
-        console.log(`CustomerMV ${result.operation}: ${customerData.email} (ID: ${result.customerId}) - Orders: ${customerData.total_orders || 0}, Spend: $${customerData.total_spend || 0}`);
+        console.log(
+          `CustomerMV ${result.operation}: ${customerData.email} (ID: ${
+            result.customerId
+          }) - Orders: ${customerData.total_orders || 0}, Spend: $${
+            customerData.total_spend || 0
+          }`
+        );
       } else {
         console.warn(`Unknown event type: ${messageContent.eventType}`);
       }
@@ -77,15 +83,17 @@ class CustomerMVConsumer {
         total_orders = 0,
         last_order_at,
         status = 'ACTIVE',
-        operation
+        operation,
       } = customerData;
 
-      // Calculate days since last order
-      const daysSinceLastOrder = last_order_at 
-        ? Math.floor((new Date() - new Date(last_order_at)) / (1000 * 60 * 60 * 24))
+      // Calculating days since last order
+      const daysSinceLastOrder = last_order_at
+        ? Math.floor(
+            (new Date() - new Date(last_order_at)) / (1000 * 60 * 60 * 24)
+          )
         : null;
 
-      // Prepare data for database
+      // data preperation for the db insertion
       const dbData = {
         name: name?.trim() || null,
         email: email.toLowerCase().trim(),
@@ -101,13 +109,13 @@ class CustomerMVConsumer {
       let result;
 
       if (customer_id) {
-        // If customer_id is provided, try to upsert by customer_id
-        const existingCustomer = await campaignDB.prisma.customers_mv.findUnique({
-          where: { customer_id: customer_id },
-        });
+        const existingCustomer =
+          await campaignDB.prisma.customers_mv.findUnique({
+            where: { customer_id: customer_id },
+          });
 
         if (existingCustomer) {
-          // Update existing customer
+          // Updating existing customer
           const updatedCustomer = await campaignDB.prisma.customers_mv.update({
             where: { customer_id: customer_id },
             data: dbData,
@@ -118,7 +126,7 @@ class CustomerMVConsumer {
             customerId: updatedCustomer.customer_id,
           };
         } else {
-          // Create new customer with provided customer_id
+          // Creating new customer
           const newCustomer = await campaignDB.prisma.customers_mv.create({
             data: {
               customer_id: customer_id,
@@ -132,13 +140,15 @@ class CustomerMVConsumer {
           };
         }
       } else {
-        // If no customer_id, try to find by email (for cases where customer is created via API first)
-        const existingCustomer = await campaignDB.prisma.customers_mv.findFirst({
-          where: { email: dbData.email },
-        });
+        //finding new customer by email
+        const existingCustomer = await campaignDB.prisma.customers_mv.findFirst(
+          {
+            where: { email: dbData.email },
+          }
+        );
 
         if (existingCustomer) {
-          // Update existing customer found by email
+          // update existing customer found by email
           const updatedCustomer = await campaignDB.prisma.customers_mv.update({
             where: { customer_id: existingCustomer.customer_id },
             data: dbData,
@@ -149,8 +159,9 @@ class CustomerMVConsumer {
             customerId: updatedCustomer.customer_id,
           };
         } else {
-          // This case shouldn't happen in normal flow, but handle it gracefully
-          console.warn(`Customer with email ${email} not found and no customer_id provided. Skipping.`);
+          console.warn(
+            `Customer with email ${email} not found and no customer_id provided. Skipping.`
+          );
           return {
             operation: 'skipped',
             customerId: null,
@@ -167,14 +178,13 @@ class CustomerMVConsumer {
 
   async stop() {
     console.log('Stopping CustomerMV Consumer...');
-    // Note: RabbitMQ consumer will stop automatically when connection is closed
   }
 }
 
 // Create and export singleton instance
 const customerMVConsumer = new CustomerMVConsumer();
 
-// Start the consumer if this file is run directly
+// For single file starting
 if (require.main === module) {
   customerMVConsumer.start().catch((error) => {
     console.error('Failed to start CustomerMV consumer:', error);

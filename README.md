@@ -190,7 +190,7 @@ RabbitMQ_URL=amqp://localhost:5672
 
 ### Installation
 
-````bash
+```bash
 # Install dependencies
 npm install
 
@@ -198,17 +198,6 @@ npm install
 npx prisma generate --schema=./services/Customer/prisma/schema.prisma
 npx prisma generate --schema=./services/Campaign/prisma/schema.prisma
 
-### Start All Services
-
-```bash
-# Start Campaign Messaging System
-cd services/Campaign
-node messagingOrchestrator.js
-````
-
-### Start Individual Services
-
-```bash
 # Customer MV Consumer
 cd services/Campaign
 node consumers/customer_mv_consumer.js
@@ -229,4 +218,4 @@ node messagingOrchestrator.js
 
 ### Credits
 
-Built with sleepless nights, multiple Red Bulls and determination, by Prateek Shukla :).
+Built with sleepless nights, multiple Red Bulls and determination, by Prateek Shukla :)

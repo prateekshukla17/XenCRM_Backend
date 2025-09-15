@@ -49,20 +49,44 @@ Functional / Campaign service (Business DB)
 - Optimized for complex read queries (segmentation) and campaign delivery.
 - Isolated schema means we can evolve it (indexes, materialized views, different DB engine) without touching ingestion.
 
-  Why this split:
+Why this split:
 
-  - separates write/load patterns (write-heavy ingestion vs read-heavy campaign queries)
-  - Resilience & scalability — decouples producers and consumers so ingestion traffic doesn’t slow down campaigns.
+- separates write/load patterns (write-heavy ingestion vs read-heavy campaign queries)
+- Resilience & scalability — decouples producers and consumers so ingestion traffic doesn’t slow down campaigns.
 
-## 📁 Project Structure
+## Technologies Used
+
+- Node.js – Runtime environment.
+
+- Express.js – REST API framework.
+
+- Prisma – ORM for PostgreSQL.
+
+- Model Context Protocol - Exposing APIs to Natural Language.
+
+- PostgreSQL(neonDB) – Primary relational database.
+
+- RabbitMQ – Message broker for event-driven communication.
+
+## Database Schemas
+
+### MasterDB
+
+![MasterDb](./readme_resources/masterdb.png)
+
+### BusinessDb
+
+![BusinessDb](./readme_resources/businessdb.png)
+
+## Project Structure
 
 ```
 XenCRM_Backend/
 ├── services/
-│   ├── Customer/           # Customer management service
-│   │   ├── prisma/         # Customer database schema
-│   │   ├── consumers/      # RabbitMQ message consumers
-│   │   ├── controllers/    # API controllers
+│   ├── Customer/           # Ingestion (customer/order) service.
+│   │   ├── prisma/         # Ingestion database schema
+│   │   ├── consumers/      # RabbitMQ message consumers (Orders,Customers)
+│   │   ├── controllers/    # API controllers for customer/order APIs
 │   │   └── routes/         # API routes
 │   └── Campaign/           # Campaign management & messaging service
 │       ├── prisma/         # Campaign database schema
@@ -74,7 +98,7 @@ XenCRM_Backend/
 │   ├── utils/
 │   │   └── rabbitmq.js     # RabbitMQ connection & queue management
 │   └── types/
-│       └── events.js       # Event type definitions
+│       └── events.js       # Event type definitions for RabbitMQ events
 └── mcp/                    # Model Context Protocol server
     ├── src/                # TypeScript source code
     │   ├── index.ts        # Main MCP server

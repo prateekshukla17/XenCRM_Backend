@@ -222,11 +222,11 @@ node messagingOrchestrator.js
 
 - Microservices: Adds complexity, multiple databases, queue, eventual consistency problems, a Monolith would have been simpler for a small project.
 
-- Production Costs: Extra Compute costs for an extra database(for this project Neon DB is free till a certail limit.)
+- Production Costs: Extra Compute costs for an extra database(for this project Neon DB is free till a certain limit.)
 
-- Multiple Services: Running multiple processes for development: containerising the application would be and future scope and better practise for production enviroments.
+- Multiple Services: Running multiple processes for development -> containerization the application would be and future scope and better practise for production enviroments.
 
-- AI Integeration(MCP Server) : Needs an external client like CLAUDE DESKTOP, for future scope, building and MCP to directly intergrating into the webapplication.
+- AI Integeration(MCP Server) : Needs an external client like CLAUDE DESKTOP, for future scope, building and MCP to directly intergrating into the web application.
 
 ### Credits
 

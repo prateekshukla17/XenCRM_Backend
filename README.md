@@ -217,16 +217,16 @@ node messagingOrchestrator.js
 
 ## Limitations & TradeOffs
 
-- Redundacy : I intentionally kept certain tables denormalised, to speed up aggregration queires, also to reduce number of joins, which may scan large customer databases.
+- Redundancy: I intentionally kept certain tables denormalised, to speed up aggregation queries, also to reduce number of joins, which may scan large customer databases.
 
-- Microservices: Adds complexity, multiple databases, queue, eventual consistency problems, a Monolith would have been simpler for a small project.
+- Microservices: Adds complexity, multiple databases, a queue, and eventual consistency problems; a Monolith would have been simpler for a small project.
 
-- Production Costs: Extra Compute costs for an extra database(for this project Neon DB is free till a certain limit.)
+- Production Costs: Extra Compute costs for an extra database(for this project, Neon DB is free till a certain limit.)
 
-- Multiple Services: Running multiple processes for development -> containerization the application would be and future scope and better practise for production enviroments.
+- Multiple Services: Running multiple processes for development -> containerization, the application would be a future scope and better practice for production environments.
 
-- AI Integeration(MCP Server) : Needs an external client like CLAUDE DESKTOP, for future scope, building and MCP to directly intergrating into the web application.
+- AI Integration (MCP Server): Needs an external client like CLAUDE DESKTOP, for future scope, building an MCP client to directly integrate into the web application.
 
 ### Credits
 
-Built with sleepless nights, multiple Red Bulls and determination, by Prateek Shukla :)
+Built with sleepless nights, multiple Red Bulls, and determination, by Prateek Shukla :)

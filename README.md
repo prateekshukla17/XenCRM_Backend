@@ -166,7 +166,6 @@ XenCRM_Backend/
     │   ├── database.ts     # Database service layer
     │   └── schemas.ts      # Validation schemas
     ├── build/              # Compiled JavaScript
-    └── README.md           # MCP server documentation
 ```
 
 ### Prerequisites
